@@ -2,10 +2,11 @@ const BE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://222.116.142.95:8000';
 
 export async function POST(
     request: Request,
-    { params }: { params: { messageId: string } }
+    { params }: { params: Promise<{ messageId: string }> }
 ) {
     try {
-        const response = await fetch(`${BE_URL}/chats/messages/${params.messageId}/answer`, {
+        const { messageId } = await params;
+        const response = await fetch(`${BE_URL}/chats/messages/${messageId}/answer`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
