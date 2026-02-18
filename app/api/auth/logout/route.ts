@@ -4,7 +4,7 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
 
-        const response = await fetch(`${BE_URL}/meetings/start`, {
+        const response = await fetch(`${BE_URL}/auth/logout`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -21,4 +21,3 @@ export async function POST(request: Request) {
         );
     }
 }
-

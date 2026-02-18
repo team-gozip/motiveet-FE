@@ -43,21 +43,29 @@ async function apiCall<T>(
         headers['Authorization'] = `Bearer ${token}`;
     }
 
+    console.log(`[API] calling: ${API_BASE_URL}${endpoint}`); // Debug Log
+
     // API 호출
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        ...options,
-        headers,
-    });
+    try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            ...options,
+            headers,
+        });
 
-    // response.ok == false => 에러 생성
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({
-            error: { code: 'UNKNOWN', message: 'An error occurred' }
-        }));
-        throw new Error(error.error?.message || 'API call failed');
+        // response.ok == false => 에러 생성
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({
+                error: { code: 'UNKNOWN', message: 'An error occurred' }
+            }));
+            console.error('[API] Error Response:', error);
+            throw new Error(error.error?.message || 'API call failed');
+        }
+
+        return response.json();
+    } catch (err) {
+        console.error(`[API] Network or Parse Error for ${API_BASE_URL}${endpoint}:`, err);
+        throw err;
     }
-
-    return response.json();
 }
 
 // 인증 API
@@ -65,8 +73,8 @@ export const authApi = {
     // 회원가입
     //endpoint : /auth/signup
     //method : POST
-    //body : { id, password }
-    signup: async (data: { id: string; password: string }) => {
+    //body : { username, password }
+    signup: async (data: { username: string; password: string }) => {
         return apiCall<{ success: boolean; userId: number }>('/auth/signup', {
             method: 'POST',
             body: JSON.stringify(data),
@@ -76,13 +84,20 @@ export const authApi = {
     // 로그인
     //endpoint : /auth/signin
     //method : POST
-    //body : { id, password }
-    signin: async (data: { id: string; password: string }) => {
+    //body : form-data (username, password)
+    signin: async (data: { username: string; password: string }) => {
+        const formData = new URLSearchParams();
+        formData.append('username', data.username);
+        formData.append('password', data.password);
+
         return apiCall<{ success: boolean; accessToken: string; refreshToken: string }>(
             '/auth/signin',
             {
                 method: 'POST',
-                body: JSON.stringify(data),
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: formData.toString(),
             }
         );
     },
@@ -158,7 +173,15 @@ export const meetingApi = {
     },
 
     uploadAudio: async (meetingId: number, audioData: string) => {
-        return apiCall<{ success: boolean }>(`/meetings/${meetingId}/audio`, {
+        return apiCall<{
+            success: boolean;
+            subject?: any;
+            latestSubject?: { subjectId: number; text: string };
+            transcript?: string;
+            message?: string;
+            timestamp: string;
+            newTopics?: string[];
+        }>(`/meetings/${meetingId}/audio`, {
             method: 'POST',
             body: JSON.stringify({ audioData }),
         });
@@ -196,7 +219,7 @@ export const chatApi = {
     sendMessage: async (chatId: number, text?: string, image?: string) => {
         return apiCall<any>('/chats/messages', {
             method: 'POST',
-            body: JSON.stringify({ chatId, text, image }),
+            body: JSON.stringify({ chatId, role: 'user', text, image }),
         });
     },
 

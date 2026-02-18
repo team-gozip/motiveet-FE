@@ -1,4 +1,4 @@
-# Backend Integration Guide
+# 백엔드 연동 가이드
 
 ## 환경 설정
 

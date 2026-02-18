@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState, ChangeEvent, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Input from '../common/Input';
 import Button from '../common/Button';
@@ -9,22 +9,22 @@ import { authApi, setTokens } from '@/lib/api';
 export default function LoginForm() {
     const router = useRouter();
     const [formData, setFormData] = useState({
-        id: '',
+        username: '',
         password: '',
     });
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
         if (error) setError('');
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
 
-        if (!formData.id.trim() || !formData.password.trim()) {
+        if (!formData.username.trim() || !formData.password.trim()) {
             setError('아이디와 비밀번호를 입력해주세요.');
             return;
         }
@@ -32,7 +32,7 @@ export default function LoginForm() {
         setIsLoading(true);
         try {
             const response = await authApi.signin({
-                id: formData.id,
+                username: formData.username,
                 password: formData.password,
             });
 
@@ -58,8 +58,8 @@ export default function LoginForm() {
                     <Input
                         label="아이디"
                         type="text"
-                        name="id"
-                        value={formData.id}
+                        name="username"
+                        value={formData.username}
                         onChange={handleChange}
                         placeholder="아이디를 입력하세요"
                         autoComplete="username"

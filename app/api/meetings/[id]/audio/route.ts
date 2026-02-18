@@ -1,10 +1,13 @@
 const BE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://222.116.142.95:8000';
 
-export async function POST(request: Request) {
+export async function POST(
+    request: Request,
+    { params }: { params: { id: string } }
+) {
     try {
         const body = await request.json();
 
-        const response = await fetch(`${BE_URL}/meetings/start`, {
+        const response = await fetch(`${BE_URL}/meetings/${params.id}/audio`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -21,4 +24,3 @@ export async function POST(request: Request) {
         );
     }
 }
-

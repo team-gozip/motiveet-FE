@@ -10,7 +10,7 @@ import { validatePassword, passwordsMatch } from '@/lib/auth';
 export default function SignupForm() {
     const router = useRouter();
     const [formData, setFormData] = useState({
-        id: '',
+        username: '',
         password: '',
         confirmPassword: '',
     });
@@ -29,8 +29,8 @@ export default function SignupForm() {
     const validate = (): boolean => {
         const newErrors: Record<string, string> = {};
 
-        if (!formData.id.trim()) {
-            newErrors.id = '아이디를 입력해주세요.';
+        if (!formData.username.trim()) {
+            newErrors.username = '아이디를 입력해주세요.';
         }
 
         const passwordValidation = validatePassword(formData.password);
@@ -54,14 +54,14 @@ export default function SignupForm() {
         setIsLoading(true);
         try {
             const response = await authApi.signup({
-                id: formData.id,
+                username: formData.username,
                 password: formData.password,
             });
 
             if (response.success) {
                 // Auto-login after successful signup
                 const loginResponse = await authApi.signin({
-                    id: formData.id,
+                    username: formData.username,
                     password: formData.password,
                 });
 
@@ -90,10 +90,10 @@ export default function SignupForm() {
                     <Input
                         label="아이디"
                         type="text"
-                        name="id"
-                        value={formData.id}
+                        name="username"
+                        value={formData.username}
                         onChange={handleChange}
-                        error={errors.id}
+                        error={errors.username}
                         placeholder="아이디를 입력하세요"
                         autoComplete="username"
                     />

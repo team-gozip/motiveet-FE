@@ -1,29 +1,19 @@
-// Mock chat messages store
-const chatMessages: Map<number, any[]> = new Map();
-let nextMessageId = 1;
+const BE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://222.116.142.95:8000';
 
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { chatId, text, image } = body;
 
-        // Create user message
-        const message = {
-            messageId: nextMessageId++,
-            chatId,
-            role: 'user',
-            text,
-            image,
-            timestamp: new Date().toISOString(),
-        };
+        const response = await fetch(`${BE_URL}/chats/messages`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        });
 
-        // Store message
-        if (!chatMessages.has(chatId)) {
-            chatMessages.set(chatId, []);
-        }
-        chatMessages.get(chatId)!.push(message);
-
-        return Response.json(message);
+        const data = await response.json();
+        return Response.json(data, { status: response.status });
     } catch (error) {
         return Response.json(
             { error: { code: 'SERVER_ERROR', message: '서버 오류가 발생했습니다.' } },
@@ -31,3 +21,4 @@ export async function POST(request: Request) {
         );
     }
 }
+

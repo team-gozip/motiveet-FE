@@ -1,17 +1,12 @@
 const BE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://222.116.142.95:8000';
 
-export async function GET(request: Request) {
+export async function DELETE(
+    request: Request,
+    { params }: { params: { id: string } }
+) {
     try {
-        const { searchParams } = new URL(request.url);
-        const cursor = searchParams.get('cursor');
-        const limit = searchParams.get('limit');
-
-        const params = new URLSearchParams();
-        if (cursor) params.append('cursor', cursor);
-        if (limit) params.append('limit', limit);
-
-        const response = await fetch(`${BE_URL}/subjects?${params.toString()}`, {
-            method: 'GET',
+        const response = await fetch(`${BE_URL}/subjects/${params.id}`, {
+            method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json',
             },
@@ -26,4 +21,3 @@ export async function GET(request: Request) {
         );
     }
 }
-

@@ -6,6 +6,7 @@ import Sidebar from '@/components/main/Sidebar';
 import CurrentSubject from '@/components/main/CurrentSubject';
 import ChatInterface from '@/components/main/ChatInterface';
 import MeetingControls from '@/components/main/MeetingControls';
+import Memo from '@/components/main/Memo';
 import { isAuthenticated, logout } from '@/lib/auth';
 import { meetingApi, subjectApi } from '@/lib/api';
 
@@ -15,6 +16,7 @@ export default function MainPage() {
     const [currentMeeting, setCurrentMeeting] = useState<any>(null);
     const [currentSubject, setCurrentSubject] = useState<any>(null);
     const [chatId, setChatId] = useState<number | null>(null);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
     useEffect(() => {
         // Check authentication
@@ -73,32 +75,39 @@ export default function MainPage() {
         }
     };
 
+    const handleSubjectUpdate = (subject: any) => {
+        console.log('[MainPage] Subject updated:', subject);
+        setCurrentSubject(subject);
+    };
+
     const handleLogout = () => {
         logout();
     };
 
     if (isLoading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-100">
+            <div className="min-h-screen flex items-center justify-center bg-zinc-950">
                 <div className="text-center">
-                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-                    <p className="text-gray-600">로딩 중...</p>
+                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mb-4"></div>
+                    <p className="text-zinc-400">로딩 중...</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="h-screen flex flex-col">
+        <div className="h-screen flex flex-col bg-zinc-950 text-white">
             {/* Header */}
-            <header className="bg-white border-b border-gray-200 shadow-sm">
-                <div className="h-16 px-6 flex items-center justify-between">
-                    <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                        회의 기록 시스템
-                    </h1>
+            <header className="bg-zinc-900 border-b border-zinc-800 shadow-md">
+                <div className="h-14 px-6 flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                        <span className="text-xl font-bold tracking-tight">
+                            <span className="text-red-500">M</span>otiveet
+                        </span>
+                    </div>
                     <button
                         onClick={handleLogout}
-                        className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                        className="px-4 py-1.5 text-sm font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-md transition-colors border border-zinc-700"
                     >
                         로그아웃
                     </button>
@@ -106,9 +115,24 @@ export default function MainPage() {
             </header>
 
             {/* Main Content */}
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex overflow-hidden relative">
+                {/* Sidebar Toggle Button */}
+                <button
+                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                    className="absolute left-0 top-1/2 -translate-y-1/2 z-20 w-6 h-12 bg-zinc-800 border border-l-0 border-zinc-700 rounded-r-md flex items-center justify-center hover:bg-zinc-700 transition-colors shadow-lg"
+                >
+                    <svg
+                        className={`w-4 h-4 text-zinc-400 transition-transform ${isSidebarOpen ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+
                 {/* Sidebar */}
-                <div className="w-80 flex-shrink-0">
+                <div className={`flex-shrink-0 transition-all duration-300 ease-in-out ${isSidebarOpen ? 'w-80' : 'w-0'} overflow-hidden`}>
                     <Sidebar
                         onMeetingSelect={handleMeetingSelect}
                         onSubjectSelect={(subjectId) => console.log('Subject selected:', subjectId)}
@@ -116,16 +140,18 @@ export default function MainPage() {
                 </div>
 
                 {/* Main Area */}
-                <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
+                <div className="flex-1 flex flex-col overflow-hidden bg-zinc-950">
                     <div className="flex-1 overflow-y-auto p-6 space-y-6">
                         {/* Current Subject */}
-                        <CurrentSubject
-                            subject={currentSubject}
-                            files={currentSubject?.files || []}
-                        />
+                        <div className="bg-zinc-900/50 rounded-xl border border-zinc-800 p-6 shadow-sm">
+                            <CurrentSubject
+                                subject={currentSubject}
+                                files={currentSubject?.files || []}
+                            />
+                        </div>
 
                         {/* Chat Interface */}
-                        <div className="h-[500px] bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
+                        <div className="h-[500px] bg-zinc-900 rounded-xl shadow-xl overflow-hidden border border-zinc-800">
                             <ChatInterface chatId={chatId} />
                         </div>
                     </div>
@@ -138,7 +164,11 @@ export default function MainPage() {
                 meetingId={currentMeeting?.meetingId || null}
                 onMeetingStart={handleMeetingStart}
                 onMeetingEnd={handleMeetingEnd}
+                onSubjectUpdate={handleSubjectUpdate}
             />
+
+            {/* Memo Component */}
+            <Memo />
         </div>
     );
 }

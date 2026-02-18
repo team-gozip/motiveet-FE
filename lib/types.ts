@@ -1,6 +1,6 @@
 export interface User {
   userId: number;
-  id: string;
+  username: string;
   createdAt: string;
 }
 
@@ -55,7 +55,7 @@ export interface FileData {
 }
 
 export interface SignupRequest {
-  id: string;
+  username: string;
   password: string;
 }
 
@@ -65,7 +65,7 @@ export interface SignupResponse {
 }
 
 export interface SigninRequest {
-  id: string;
+  username: string;
   password: string;
 }
 
