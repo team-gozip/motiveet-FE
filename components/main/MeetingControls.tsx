@@ -6,7 +6,7 @@ interface MeetingControlsProps {
     isActive: boolean;
     meetingId: number | null;
     onMeetingStart: (meetingId: number, chatId: number) => void;
-    onMeetingEnd: () => void;
+    onMeetingEnd: (summary?: string) => void;
     onSubjectUpdate?: (subject: any) => void;
 }
 
@@ -19,7 +19,6 @@ export default function MeetingControls({
 }: MeetingControlsProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-    const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null);
     const [volume, setVolume] = useState(0);
 
     const audioContextRef = useRef<AudioContext | null>(null);
@@ -62,21 +61,11 @@ export default function MeetingControls({
             updateVolume();
 
             const recorder = new MediaRecorder(stream);
-            let chunks: Blob[] = [];
+            (window as any).recorder = recorder; // Debugging
 
             recorder.ondataavailable = (e) => {
                 if (e.data.size > 0) {
-                    chunks.push(e.data);
-                }
-            };
-
-            const id = setInterval(() => {
-                if (recorder.state === 'recording') {
-                    recorder.requestData();
-
-                    const audioBlob = new Blob(chunks, { type: 'audio/webm' });
-                    chunks = [];
-
+                    const audioBlob = new Blob([e.data], { type: 'audio/webm' });
                     meetingApi.uploadAudio(currentMeetingId, audioBlob)
                         .then(response => {
                             console.log('[Audio Upload] Success:', response);
@@ -86,11 +75,20 @@ export default function MeetingControls({
                         })
                         .catch(err => console.error('Audio upload failed:', err));
                 }
-            }, 60000);
+            };
 
-            setIntervalId(id);
             setMediaRecorder(recorder);
             recorder.start();
+
+            // 30초마다 새로운 녹음 파일 생성 (Whisper 호환성 보장)
+            const intervalId = setInterval(() => {
+                if (recorder.state === 'recording') {
+                    recorder.stop();
+                    recorder.start();
+                }
+            }, 30000);
+
+            (window as any).recorderInterval = intervalId;
         } catch (error) {
             console.error('Failed to start recording:', error);
             alert('마이크 접근 권한이 필요합니다.');
@@ -102,10 +100,6 @@ export default function MeetingControls({
             mediaRecorder.stop();
             mediaRecorder.stream.getTracks().forEach(track => track.stop());
         }
-        if (intervalId) {
-            clearInterval(intervalId);
-            setIntervalId(null);
-        }
         if (animationFrameRef.current) {
             cancelAnimationFrame(animationFrameRef.current);
             animationFrameRef.current = null;
@@ -113,6 +107,10 @@ export default function MeetingControls({
         if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
             audioContextRef.current.close();
             audioContextRef.current = null;
+        }
+        if ((window as any).recorderInterval) {
+            clearInterval((window as any).recorderInterval);
+            (window as any).recorderInterval = null;
         }
         setMediaRecorder(null);
         setVolume(0);
@@ -148,7 +146,7 @@ export default function MeetingControls({
             const response = await meetingApi.end(meetingId);
             if (response.success) {
                 stopRecording();
-                onMeetingEnd();
+                onMeetingEnd(response.summary);
             }
         } catch (error) {
             console.error('Failed to end meeting:', error);
@@ -158,38 +156,39 @@ export default function MeetingControls({
         }
     };
 
-    // Clean up on unmount
     useEffect(() => {
         return () => {
-            if (intervalId) clearInterval(intervalId);
             if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
             if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
                 audioContextRef.current.close();
             }
         };
-    }, [intervalId]);
+    }, []);
 
     // Volume Meter Component (SVG Waves)
     const VolumeMeter = () => {
         const isHigh = volume > 80;
-        const color = isHigh ? '#ef4444' : '#10b981'; // Red-500 or Emerald-500
-        const opacity = isActive ? Math.min(0.3 + volume / 100, 1) : 0.2;
+        const color = isHigh ? '#ef4444' : '#6366f1'; // Red-500 or Indigo-500
 
         return (
-            <div className="flex items-center space-x-1.5 ml-2">
-                <div className="flex items-center space-x-0.5">
-                    {/* Visualizing 3 waves like ))) */}
-                    {[1, 2, 3].map((i) => (
-                        <div
-                            key={i}
-                            className="w-1 rounded-full transition-all duration-75"
-                            style={{
-                                height: `${Math.max(4, (volume / (4 - i + 1)) * 0.4)}px`,
-                                backgroundColor: isActive && volume > (i * 20) ? color : '#94a3b8',
-                                opacity: isActive ? 1 : 0.3
-                            }}
-                        />
-                    ))}
+            <div className="flex items-center space-x-1 ml-2 mr-1">
+                <div className="flex items-end space-x-0.5 h-4">
+                    {[0.6, 1.0, 1.5, 1.0, 0.6].map((multiplier, i) => {
+                        const baseHeight = 4;
+                        const dynamicHeight = Math.max(baseHeight, (volume * multiplier) / 4);
+                        return (
+                            <div
+                                key={i}
+                                className="w-1 rounded-full transition-all duration-100 ease-out"
+                                style={{
+                                    height: `${isActive ? dynamicHeight : baseHeight}px`,
+                                    backgroundColor: isActive && volume > 5 ? color : '#94a3b8',
+                                    opacity: isActive ? (volume > 5 ? 1 : 0.4) : 0.2,
+                                    boxShadow: isActive && volume > 20 ? `0 0 8px ${color}66` : 'none'
+                                }}
+                            />
+                        );
+                    })}
                 </div>
             </div>
         );

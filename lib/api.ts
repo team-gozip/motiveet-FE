@@ -270,29 +270,29 @@ export const subjectApi = {
 export const chatApi = {
     sendMessage: async (chatId: number, text?: string, image?: string) => {
         return apiCall<{
-            success: boolean;
             messageId: number;
             chatId: number;
-            role: 'user';
+            role: 'user' | 'assistant';
             text?: string;
             image?: string;
             timestamp: string;
         }>('/chats/messages', {
             method: 'POST',
-            body: JSON.stringify({ chatId, text, image }),
+            body: JSON.stringify({ chatId, role: 'user', text, image }),
         });
     },
 
     getAnswer: async (messageId: number) => {
         return apiCall<{
-            success: boolean;
             messageId: number;
             chatId: number;
             role: 'assistant';
             text: string;
             image?: string;
             timestamp: string;
-        }>(`/chats/messages/${messageId}/answer`);
+        }>(`/chats/messages/${messageId}/answer`, {
+            method: 'POST',
+        });
     },
 
     getHistory: async (chatId: number, cursor?: number, limit: number = 50) => {

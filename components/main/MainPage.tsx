@@ -8,6 +8,7 @@ import CurrentSubject from '@/components/main/CurrentSubject';
 import ChatInterface from '@/components/main/ChatInterface';
 import MeetingControls from '@/components/main/MeetingControls';
 import Memo from '@/components/main/Memo';
+import SummaryModal from '@/components/main/SummaryModal';
 import { isAuthenticated, logout } from '@/lib/auth';
 import { meetingApi, subjectApi } from '@/lib/api';
 import { useTheme } from '@/components/common/ThemeProvider';
@@ -26,6 +27,8 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
     const [chatId, setChatId] = useState<number | null>(null);
     const [activeTab, setActiveTab] = useState<'chat' | 'memo'>('chat');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [summaryText, setSummaryText] = useState<string>('');
+    const [showSummaryModal, setShowSummaryModal] = useState(false);
 
     useEffect(() => {
         // Check authentication
@@ -74,9 +77,14 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
         router.push(`/meeting/${meetingId}`);
     };
 
-    const handleMeetingEnd = () => {
-        // Navigate back to dashboard
-        router.push('/dashboard');
+    const handleMeetingEnd = (summary?: string) => {
+        if (summary) {
+            setSummaryText(summary);
+            setShowSummaryModal(true);
+        } else {
+            // No summary, just go back
+            router.push('/dashboard');
+        }
     };
 
     const handleMeetingSelect = async (meetingId: number) => {
@@ -266,7 +274,10 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
 
                             <div className="flex-1 overflow-hidden relative">
                                 {activeTab === 'chat' ? (
-                                    <ChatInterface chatId={chatId} />
+                                    <ChatInterface
+                                        chatId={chatId}
+                                        isMeetingActive={!!currentMeeting && !currentMeeting.endedAt}
+                                    />
                                 ) : (
                                     <Memo />
                                 )}
@@ -288,6 +299,15 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
                     />
                 </div>
             </div>
+
+            <SummaryModal
+                isOpen={showSummaryModal}
+                onClose={() => {
+                    setShowSummaryModal(false);
+                    router.push('/dashboard');
+                }}
+                summary={summaryText}
+            />
         </div>
     );
 }
