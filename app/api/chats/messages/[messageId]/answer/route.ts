@@ -6,11 +6,14 @@ export async function POST(
 ) {
     try {
         const { messageId } = await params;
+        const authHeader = request.headers.get('Authorization');
+
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (authHeader) headers['Authorization'] = authHeader;
+
         const response = await fetch(`${BE_URL}/chats/messages/${messageId}/answer`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers,
         });
 
         const data = await response.json();
@@ -22,4 +25,3 @@ export async function POST(
         );
     }
 }
-

@@ -1,7 +1,7 @@
-import MainPage from '@/components/main/MainPage';
+'use client';
+
+import LandingPage from '@/components/landing/LandingPage';
 
 export default function Page() {
-  return (
-    <MainPage />
-  );
+  return <LandingPage />;
 }

@@ -1,30 +1,30 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL = '/api';
 
-//AccessToken 발급
+// ── Token Management ────────────────────────────────────────────
+
 export const getAccessToken = (): string | null => {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('accessToken');
 };
 
-//RefreshToken 발급
 export const getRefreshToken = (): string | null => {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('refreshToken');
 };
 
-// localStorage에 accessToken, refreshToken 저장
 export const setTokens = (accessToken: string, refreshToken: string): void => {
     if (typeof window === 'undefined') return;
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
 };
 
-// localStorage내부 Token(access, refresh) 삭제
 export const clearTokens = (): void => {
     if (typeof window === 'undefined') return;
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
 };
+
+// ── Core Fetch Wrapper ──────────────────────────────────────────
 
 async function apiCall<T>(
     endpoint: string,
@@ -32,48 +32,38 @@ async function apiCall<T>(
 ): Promise<T> {
     const token = getAccessToken();
 
-    // 해더 설정 : Content-Type, Authorization
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...(options.headers as Record<string, string>),
+        ...(options.headers as Record<string, string> || {}),
     };
 
-    // 토큰이 존재하면 Authorization 헤더에 추가
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
 
-    console.log(`[API] calling: ${API_BASE_URL}${endpoint}`); // Debug Log
-
-    // API 호출
-    try {
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-            ...options,
-            headers,
-        });
-
-        // response.ok == false => 에러 생성
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({
-                error: { code: 'UNKNOWN', message: 'An error occurred' }
-            }));
-            console.error('[API] Error Response:', error);
-            throw new Error(error.error?.message || 'API call failed');
-        }
-
-        return response.json();
-    } catch (err) {
-        console.error(`[API] Network or Parse Error for ${API_BASE_URL}${endpoint}:`, err);
-        throw err;
+    // FormData인 경우 Content-Type 헤더 제거 (브라우저가 자동 설정)
+    if (options.body instanceof FormData) {
+        delete headers['Content-Type'];
     }
+
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        ...options,
+        headers,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        // FastAPI는 'detail' 필드에 에러 메시지를 담는 경우가 많으므로 이를 우선적으로 확인
+        const errorMessage = errorData?.error?.message || errorData?.message || errorData?.detail || `요청 실패 (${response.status})`;
+        throw new Error(errorMessage);
+    }
+
+    return response.json();
 }
 
-// 인증 API
+// ── Auth API ────────────────────────────────────────────────────
+
 export const authApi = {
-    // 회원가입
-    //endpoint : /auth/signup
-    //method : POST
-    //body : { username, password }
     signup: async (data: { username: string; password: string }) => {
         return apiCall<{ success: boolean; userId: number }>('/auth/signup', {
             method: 'POST',
@@ -81,131 +71,191 @@ export const authApi = {
         });
     },
 
-    // 로그인
-    //endpoint : /auth/signin
-    //method : POST
-    //body : form-data (username, password)
     signin: async (data: { username: string; password: string }) => {
-        const formData = new URLSearchParams();
-        formData.append('username', data.username);
-        formData.append('password', data.password);
-
-        return apiCall<{ success: boolean; accessToken: string; refreshToken: string }>(
-            '/auth/signin',
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: formData.toString(),
-            }
-        );
+        return apiCall<{ success: boolean; accessToken: string; refreshToken: string }>('/auth/signin', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
     },
 
-    // 로그아웃
-    //endpoint : /auth/logout
-    //method : POST
-    //body : { refreshToken }
     logout: async () => {
-        const refreshToken = getRefreshToken();
-        return apiCall<{ success: boolean }>('/auth/logout', {
+        const result = await apiCall<{ success: boolean }>('/auth/logout', {
             method: 'POST',
-            body: JSON.stringify({ refreshToken }),
         });
+        clearTokens();
+        return result;
     },
 };
 
-// meeting api
+// ── Meeting API ─────────────────────────────────────────────────
+
 export const meetingApi = {
-    // 현재 진행중인 회의
-    //endpoint : /meetings/current
-    //method : GET
     getCurrent: async () => {
-        return apiCall<any>('/meetings/current');
+        return apiCall<{
+            meetingId: number;
+            chatId: number;
+            title: string;
+            startedAt: string;
+            endedAt: string | null;
+            summary: string | null;
+        }>('/meetings/current');
     },
 
-    // 회의 상세 조회
-    //endpoint : /meetings/{meetingId}
-    //method : GET
+    getMe: async () => {
+        return apiCall<{
+            meetingId: number;
+            chatId: number;
+            title: string;
+            startedAt: string;
+            endedAt: string | null;
+            summary: string | null;
+        }>('/meetings/me');
+    },
+
     getById: async (meetingId: number) => {
-        return apiCall<any>(`/meetings/${meetingId}`);
+        return apiCall<{
+            meetingId: number;
+            chatId: number;
+            title: string;
+            startedAt: string;
+            endedAt: string | null;
+            summary: string | null;
+        }>(`/meetings/${meetingId}`);
     },
 
-    // 회의 목록 조회
-    //endpoint : /meetings
-    //method : GET
-    //query : cursor, limit
     getHistory: async (cursor?: number, limit: number = 10) => {
         const params = new URLSearchParams();
-        if (cursor) params.append('cursor', cursor.toString());
-        params.append('limit', limit.toString());
-
-        return apiCall<any>(`/meetings?${params.toString()}`);
+        if (cursor) params.append('cursor', String(cursor));
+        params.append('limit', String(limit));
+        return apiCall<{
+            meetings: Array<{
+                meetingId: number;
+                title: string;
+                startedAt: string;
+                endedAt: string | null;
+            }>;
+            nextCursor: number | null;
+        }>(`/meetings?${params}`);
     },
 
-    // 회의 시작
-    //endpoint : /meetings/start
-    //method : POST
-    //body : { title }
     start: async (title?: string) => {
-        return apiCall<any>('/meetings/start', {
+        return apiCall<{
+            success: boolean;
+            meetingId: number;
+            chatId: number;
+            title: string;
+            startedAt: string;
+        }>('/meetings/start', {
             method: 'POST',
             body: JSON.stringify({ title }),
         });
     },
 
-    // 회의 종료
-    //endpoint : /meetings/{meetingId}/end
-    //method : POST
     end: async (meetingId: number) => {
-        return apiCall<any>(`/meetings/${meetingId}/end`, {
+        return apiCall<{ success: boolean; summary?: string }>(`/meetings/${meetingId}/end`, {
             method: 'POST',
         });
     },
 
-    // 회의 삭제
-    //endpoint : /meetings/{meetingId}
-    //method : DELETE
     delete: async (meetingId: number) => {
         return apiCall<{ success: boolean }>(`/meetings/${meetingId}`, {
             method: 'DELETE',
         });
     },
 
-    uploadAudio: async (meetingId: number, audioData: string) => {
+    uploadAudio: async (meetingId: number, audioBlob: Blob) => {
+        const formData = new FormData();
+        formData.append('audio', audioBlob, 'recording.webm');
+
         return apiCall<{
             success: boolean;
-            subject?: any;
-            latestSubject?: { subjectId: number; text: string };
+            subject: {
+                subjectId: number;
+                chatId: number;
+                text: string;
+                files: string[];
+            };
+            suggestions?: string[];
+            summary?: string;
             transcript?: string;
-            message?: string;
-            timestamp: string;
+            timestamp?: string;
             newTopics?: string[];
         }>(`/meetings/${meetingId}/audio`, {
             method: 'POST',
-            body: JSON.stringify({ audioData }),
+            body: formData,
         });
     },
 };
 
+// ── Subject API ─────────────────────────────────────────────────
+
 export const subjectApi = {
     getCurrent: async (meetingId: number) => {
-        return apiCall<any>(`/meetings/${meetingId}/subject`);
+        return apiCall<{
+            subject: {
+                subjectId: number;
+                meetingId: number;
+                chatId: number;
+                text: string;
+                createdAt: string;
+            } | null;
+            suggestions: string[];
+            summary?: string;
+        }>(`/meetings/${meetingId}/subject`);
     },
 
-    select: async (text: string) => {
-        return apiCall<any>('/subjects/select', {
-            method: 'POST',
+    update: async (subjectId: number, text: string) => {
+        return apiCall<{
+            subjectId: number;
+            meetingId: number;
+            text: string;
+            createdAt: string;
+        }>(`/subjects/${subjectId}`, {
+            method: 'PUT',
             body: JSON.stringify({ text }),
+        });
+    },
+
+    create: async (meetingId: number, text: string) => {
+        return apiCall<{
+            subjectId: number;
+            meetingId: number;
+            chatId: number;
+            text: string;
+            createdAt: string;
+        }>('/subjects', {
+            method: 'POST',
+            body: JSON.stringify({ meetingId, text }),
+        });
+    },
+
+    select: async (meetingId: number, text: string) => {
+        return apiCall<{
+            subjectId: number;
+            meetingId: number;
+            chatId: number;
+            text: string;
+            createdAt: string;
+        }>('/subjects/select', {
+            method: 'POST',
+            body: JSON.stringify({ meetingId, text }),
         });
     },
 
     getHistory: async (cursor?: number, limit: number = 10) => {
         const params = new URLSearchParams();
-        if (cursor) params.append('cursor', cursor.toString());
-        params.append('limit', limit.toString());
-
-        return apiCall<any>(`/subjects?${params.toString()}`);
+        if (cursor) params.append('cursor', String(cursor));
+        params.append('limit', String(limit));
+        return apiCall<{
+            subjects: Array<{
+                subjectId: number;
+                text: string;
+                meetingId: number;
+                chatId: number;
+                createdAt: string;
+            }>;
+            nextCursor: number | null;
+        }>(`/subjects?${params}`);
     },
 
     delete: async (subjectId: number) => {
@@ -215,25 +265,49 @@ export const subjectApi = {
     },
 };
 
+// ── Chat API ────────────────────────────────────────────────────
+
 export const chatApi = {
     sendMessage: async (chatId: number, text?: string, image?: string) => {
-        return apiCall<any>('/chats/messages', {
+        return apiCall<{
+            success: boolean;
+            messageId: number;
+            chatId: number;
+            role: 'user';
+            text?: string;
+            image?: string;
+            timestamp: string;
+        }>('/chats/messages', {
             method: 'POST',
-            body: JSON.stringify({ chatId, role: 'user', text, image }),
+            body: JSON.stringify({ chatId, text, image }),
         });
     },
 
     getAnswer: async (messageId: number) => {
-        return apiCall<any>(`/chats/messages/${messageId}/answer`, {
-            method: 'POST',
-        });
+        return apiCall<{
+            success: boolean;
+            messageId: number;
+            chatId: number;
+            role: 'assistant';
+            text: string;
+            image?: string;
+            timestamp: string;
+        }>(`/chats/messages/${messageId}/answer`);
     },
 
     getHistory: async (chatId: number, cursor?: number, limit: number = 50) => {
         const params = new URLSearchParams();
-        if (cursor) params.append('cursor', cursor.toString());
-        params.append('limit', limit.toString());
-
-        return apiCall<any>(`/chats/${chatId}/messages?${params.toString()}`);
+        if (cursor) params.append('cursor', String(cursor));
+        params.append('limit', String(limit));
+        return apiCall<{
+            messages: Array<{
+                messageId: number;
+                chatId: number;
+                role: 'user' | 'assistant';
+                text?: string;
+                image?: string;
+                timestamp: string;
+            }>;
+        }>(`/chats/${chatId}/messages?${params}`);
     },
 };

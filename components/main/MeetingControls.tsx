@@ -1,6 +1,4 @@
-'use client';
-
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Button from '../common/Button';
 import { meetingApi } from '@/lib/api';
 
@@ -22,6 +20,11 @@ export default function MeetingControls({
     const [isLoading, setIsLoading] = useState(false);
     const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
     const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null);
+    const [volume, setVolume] = useState(0);
+
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const analyserRef = useRef<AnalyserNode | null>(null);
+    const animationFrameRef = useRef<number | null>(null);
 
     const startRecording = async (currentMeetingId: number) => {
         try {
@@ -31,6 +34,33 @@ export default function MeetingControls({
             }
 
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+            // Setup Web Audio API for volume monitoring
+            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const analyser = audioContext.createAnalyser();
+            const source = audioContext.createMediaStreamSource(stream);
+            source.connect(analyser);
+            analyser.fftSize = 256;
+
+            audioContextRef.current = audioContext;
+            analyserRef.current = analyser;
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            const updateVolume = () => {
+                if (!analyserRef.current) return;
+                analyserRef.current.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                    sum += dataArray[i];
+                }
+                const average = sum / bufferLength;
+                setVolume(average);
+                animationFrameRef.current = requestAnimationFrame(updateVolume);
+            };
+            updateVolume();
+
             const recorder = new MediaRecorder(stream);
             let chunks: Blob[] = [];
 
@@ -47,20 +77,14 @@ export default function MeetingControls({
                     const audioBlob = new Blob(chunks, { type: 'audio/webm' });
                     chunks = [];
 
-                    const reader = new FileReader();
-                    reader.readAsDataURL(audioBlob);
-                    reader.onloadend = () => {
-                        const base64Data = reader.result as string;
-                        meetingApi.uploadAudio(currentMeetingId, base64Data)
-                            .then(response => {
-                                console.log('[Audio Upload] Success:', response);
-                                // 주제가 업데이트되었으면 부모 컴포넌트에 알림
-                                if (response.success && response.subject && onSubjectUpdate) {
-                                    onSubjectUpdate(response.subject);
-                                }
-                            })
-                            .catch(err => console.error('Audio upload failed:', err));
-                    };
+                    meetingApi.uploadAudio(currentMeetingId, audioBlob)
+                        .then(response => {
+                            console.log('[Audio Upload] Success:', response);
+                            if (response.success && response.subject && onSubjectUpdate) {
+                                onSubjectUpdate(response.subject);
+                            }
+                        })
+                        .catch(err => console.error('Audio upload failed:', err));
                 }
             }, 60000);
 
@@ -82,7 +106,16 @@ export default function MeetingControls({
             clearInterval(intervalId);
             setIntervalId(null);
         }
+        if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+        }
+        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+            audioContextRef.current.close();
+            audioContextRef.current = null;
+        }
         setMediaRecorder(null);
+        setVolume(0);
     };
 
     const handleStart = async () => {
@@ -125,32 +158,79 @@ export default function MeetingControls({
         }
     };
 
+    // Clean up on unmount
+    useEffect(() => {
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+            if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+            if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+                audioContextRef.current.close();
+            }
+        };
+    }, [intervalId]);
+
+    // Volume Meter Component (SVG Waves)
+    const VolumeMeter = () => {
+        const isHigh = volume > 80;
+        const color = isHigh ? '#ef4444' : '#10b981'; // Red-500 or Emerald-500
+        const opacity = isActive ? Math.min(0.3 + volume / 100, 1) : 0.2;
+
+        return (
+            <div className="flex items-center space-x-1.5 ml-2">
+                <div className="flex items-center space-x-0.5">
+                    {/* Visualizing 3 waves like ))) */}
+                    {[1, 2, 3].map((i) => (
+                        <div
+                            key={i}
+                            className="w-1 rounded-full transition-all duration-75"
+                            style={{
+                                height: `${Math.max(4, (volume / (4 - i + 1)) * 0.4)}px`,
+                                backgroundColor: isActive && volume > (i * 20) ? color : '#94a3b8',
+                                opacity: isActive ? 1 : 0.3
+                            }}
+                        />
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
     return (
-        <div className="bg-zinc-300 border-t border-zinc-400 p-4 shadow-2xl">
-            <div className="max-w-4xl mx-auto flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                    <div className={`w-3 h-3 rounded-full ${isActive ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-zinc-400'}`}></div>
-                    <span className="text-sm font-semibold text-zinc-700">
-                        {isActive ? '회의 진행 중' : '회의 대기 중'}
-                    </span>
+        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] px-6 py-3 rounded-full shadow-2xl transition-all duration-300 hover:shadow-[var(--accent-primary)]/10 active:scale-[0.99]">
+            <div className="flex items-center justify-between space-x-8">
+                <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-3">
+                        <div className="relative">
+                            <div className={`w-3.5 h-3.5 rounded-full ${isActive ? 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)]' : 'bg-gray-400 opacity-50'}`}></div>
+                            {isActive && <div className="absolute inset-0 w-3.5 h-3.5 rounded-full bg-emerald-500 animate-ping opacity-40"></div>}
+                        </div>
+                        <span className="text-xs font-bold text-[var(--foreground)] opacity-60 tracking-wider whitespace-nowrap">
+                            {isActive ? 'RECORDING LIVE' : 'READY TO START'}
+                        </span>
+                    </div>
+
+                    {/* Real-time Audio Visualizer */}
+                    <div className="flex items-center h-4 border-l border-[var(--border-color)] pl-4">
+                        <VolumeMeter />
+                    </div>
                 </div>
 
-                <div className="flex space-x-3">
+                <div className="flex items-center">
                     {!isActive ? (
                         <button
                             onClick={handleStart}
                             disabled={isLoading}
-                            className="px-8 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-full font-bold shadow-lg transition-all transform hover:scale-105 active:scale-95 disabled:bg-zinc-500 disabled:scale-100"
+                            className="px-10 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full text-sm font-bold shadow-lg transition-all transform hover:scale-105 active:scale-95 disabled:bg-gray-500 disabled:scale-100 uppercase tracking-widest"
                         >
-                            {isLoading ? '시작 중...' : '회의 시작'}
+                            {isLoading ? 'Wait...' : 'Start Meeting'}
                         </button>
                     ) : (
                         <button
                             onClick={handleEnd}
                             disabled={isLoading}
-                            className="px-8 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-full font-bold shadow-lg transition-all transform hover:scale-105 active:scale-95 disabled:bg-zinc-500"
+                            className="px-10 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-full text-sm font-bold shadow-lg transition-all transform hover:scale-105 active:scale-95 disabled:bg-gray-500 uppercase tracking-widest"
                         >
-                            {isLoading ? '종료 중...' : '회의 종료'}
+                            {isLoading ? 'Wait...' : 'End Meeting'}
                         </button>
                     )}
                 </div>

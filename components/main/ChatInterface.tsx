@@ -117,7 +117,7 @@ export default function ChatInterface({ chatId }: ChatInterfaceProps) {
     }
 
     return (
-        <div className="h-full flex flex-col bg-zinc-900 border border-zinc-800">
+        <div className="h-full flex flex-col bg-[var(--card-bg)] border border-[var(--border-color)] transition-colors duration-300">
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.map((message) => (
@@ -126,12 +126,12 @@ export default function ChatInterface({ chatId }: ChatInterfaceProps) {
                         className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                         <div
-                            className={`max-w-xs lg:max-w-md xl:max-w-lg px-4 py-2 rounded-2xl ${message.role === 'user'
-                                ? 'bg-red-600 text-white'
-                                : 'bg-zinc-800 text-zinc-100 border border-zinc-700'
+                            className={`max-w-xs lg:max-w-md xl:max-w-lg px-4 py-2 rounded-2xl shadow-sm ${message.role === 'user'
+                                ? 'bg-[var(--accent-primary)] text-[#1a1a1a]'
+                                : 'bg-[var(--highlight-bg)] text-[var(--foreground)] border border-[var(--border-color)]'
                                 }`}
                         >
-                            {message.text && <p className="text-sm whitespace-pre-wrap">{message.text}</p>}
+                            {message.text && <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.text}</p>}
                             {message.image && (
                                 <img
                                     src={message.image}
@@ -140,21 +140,21 @@ export default function ChatInterface({ chatId }: ChatInterfaceProps) {
                                 />
                             )}
                             <p
-                                className={`text-xs mt-1 ${message.role === 'user' ? 'text-red-100' : 'text-zinc-500'
+                                className={`text-[10px] mt-1 font-medium ${message.role === 'user' ? 'text-[#1a1a1a]' : 'text-[var(--foreground)] opacity-30'
                                     }`}
                             >
-                                {new Date(message.timestamp).toLocaleTimeString('ko-KR')}
+                                {new Date(message.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}
                             </p>
                         </div>
                     </div>
                 ))}
                 {isLoading && (
                     <div className="flex justify-start">
-                        <div className="bg-zinc-800 border border-zinc-700 px-4 py-2 rounded-2xl">
+                        <div className="bg-[var(--highlight-bg)] border border-[var(--border-color)] px-4 py-2 rounded-2xl shadow-sm">
                             <div className="flex space-x-2">
-                                <div className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce"></div>
-                                <div className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                                <div className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                                <div className="w-1.5 h-1.5 bg-[var(--accent-primary)]/50 rounded-full animate-bounce"></div>
+                                <div className="w-1.5 h-1.5 bg-[var(--accent-primary)]/50 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                                <div className="w-1.5 h-1.5 bg-[var(--accent-primary)]/50 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                             </div>
                         </div>
                     </div>
@@ -163,21 +163,21 @@ export default function ChatInterface({ chatId }: ChatInterfaceProps) {
             </div>
 
             {/* Input */}
-            <div className="border-t border-zinc-800 p-4 bg-zinc-900/50">
+            <div className="border-t border-[var(--border-color)] p-4 bg-[var(--background)]">
                 <div className="flex items-end space-x-2">
                     <textarea
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyPress={handleKeyPress}
                         placeholder="메시지를 입력하세요..."
-                        className="flex-1 px-4 py-2 bg-zinc-800 text-white border border-zinc-700 rounded-lg resize-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500/50 outline-none"
-                        rows={2}
+                        className="flex-1 px-4 py-3 bg-[var(--highlight-bg)]/50 text-[var(--foreground)] border border-[var(--border-color)] rounded-xl resize-none focus:ring-2 focus:ring-[var(--accent-primary)]/20 focus:border-[var(--accent-primary)]/30 outline-none transition-all placeholder:text-[var(--foreground)] placeholder:opacity-20 text-sm"
+                        rows={1}
                         disabled={isLoading}
                     />
                     <button
                         onClick={handleSend}
                         disabled={!input.trim() || isLoading}
-                        className="px-6 py-2 bg-red-600 hover:bg-red-700 disabled:bg-zinc-700 text-white rounded-lg transition-colors font-medium self-end mb-1"
+                        className="px-6 py-3 bg-[var(--accent-primary)] hover:opacity-90 disabled:bg-zinc-300 dark:disabled:bg-zinc-800 disabled:opacity-50 text-white rounded-xl transition-all font-bold self-end shadow-md hover:shadow-lg active:scale-95 text-sm"
                     >
                         전송
                     </button>

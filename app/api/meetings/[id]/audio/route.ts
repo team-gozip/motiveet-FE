@@ -6,14 +6,18 @@ export async function POST(
 ) {
     try {
         const { id } = await params;
-        const body = await request.json();
+        const authHeader = request.headers.get('Authorization');
+
+        // FormData를 그대로 BE로 전달
+        const formData = await request.formData();
+
+        const headers: Record<string, string> = {};
+        if (authHeader) headers['Authorization'] = authHeader;
 
         const response = await fetch(`${BE_URL}/meetings/${id}/audio`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(body),
+            headers,
+            body: formData,
         });
 
         const data = await response.json();

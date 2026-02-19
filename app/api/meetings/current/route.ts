@@ -1,12 +1,17 @@
 const BE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://222.116.142.95:8000';
 
-export async function GET() {
+function getAuthHeaders(request: Request): Record<string, string> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader) headers['Authorization'] = authHeader;
+    return headers;
+}
+
+export async function GET(request: Request) {
     try {
         const response = await fetch(`${BE_URL}/meetings/current`, {
             method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: getAuthHeaders(request),
         });
 
         const data = await response.json();
@@ -18,4 +23,3 @@ export async function GET() {
         );
     }
 }
-
