@@ -151,9 +151,10 @@ export const meetingApi = {
         });
     },
 
-    end: async (meetingId: number) => {
+    end: async (meetingId: number, memo?: string) => {
         return apiCall<{ success: boolean; summary?: string }>(`/meetings/${meetingId}/end`, {
             method: 'POST',
+            body: JSON.stringify({ memo: memo || null }),
         });
     },
 
