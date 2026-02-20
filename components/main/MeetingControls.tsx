@@ -69,8 +69,8 @@ export default function MeetingControls({
                     meetingApi.uploadAudio(currentMeetingId, audioBlob)
                         .then(response => {
                             console.log('[Audio Upload] Success:', response);
-                            if (response.success && response.subject && onSubjectUpdate) {
-                                onSubjectUpdate(response.subject);
+                            if (response.success && onSubjectUpdate) {
+                                onSubjectUpdate(response);
                             }
                         })
                         .catch(err => console.error('Audio upload failed:', err));
@@ -81,10 +81,16 @@ export default function MeetingControls({
             recorder.start();
 
             // 30초마다 새로운 녹음 파일 생성 (Whisper 호환성 보장)
+            // recorder.stop()을 호출하면 ondataavailable이 실행되어 서버로 전송됩니다.
             const intervalId = setInterval(() => {
                 if (recorder.state === 'recording') {
                     recorder.stop();
-                    recorder.start();
+                    // 브라우저가 정지 후 다시 시작할 수 있도록 약간의 지연을 둡니다.
+                    setTimeout(() => {
+                        if (recorder.state === 'inactive') {
+                            recorder.start();
+                        }
+                    }, 200);
                 }
             }, 30000);
 

@@ -310,4 +310,18 @@ export const chatApi = {
             }>;
         }>(`/chats/${chatId}/messages?${params}`);
     },
+
+    requestResearch: async (chatId: number, topic: string) => {
+        return apiCall<{
+            messageId: number;
+            chatId: number;
+            role: 'user' | 'assistant';
+            text?: string;
+            image?: string;
+            timestamp: string;
+        }>('/chats/messages', {
+            method: 'POST',
+            body: JSON.stringify({ chatId, role: 'user', text: `${topic} 찾아줘` }),
+        });
+    },
 };

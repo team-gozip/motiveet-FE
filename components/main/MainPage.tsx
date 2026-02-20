@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Sidebar from '@/components/main/Sidebar';
@@ -29,6 +29,7 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [summaryText, setSummaryText] = useState<string>('');
     const [showSummaryModal, setShowSummaryModal] = useState(false);
+    const chatRef = useRef<any>(null);
 
     useEffect(() => {
         // Check authentication
@@ -48,6 +49,49 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
             setIsLoading(false);
         }
     }, [initialMeetingId]);
+
+    // ── 주제 자동 갱신 폴링 ─────────────────────────────────────────
+    // 회의가 활성화된 동안 10초마다 BE에서 최신 주제 목록을 가져와
+    // 새로고침 없이도 AI 추출 주제 버튼이 자동으로 나타납니다.
+    useEffect(() => {
+        const meetingId = currentMeeting?.meetingId;
+        const isActive = meetingId && !currentMeeting?.endedAt;
+        if (!isActive) return;
+
+        const pollTopics = async () => {
+            try {
+                const res = await subjectApi.getCurrent(meetingId);
+
+                // 주제 목록 갱신 (중복 제거)
+                if (res.suggestions && res.suggestions.length > 0) {
+                    setSuggestedSubjects(prev => {
+                        const combined = [...prev, ...res.suggestions];
+                        return combined.filter((v, i, self) => self.indexOf(v) === i);
+                    });
+                }
+
+                // 현재 주제가 바뀌었을 때만 업데이트
+                const newSubject = res.subject;
+                if (newSubject) {
+                    setCurrentSubject((prev: any) => {
+                        const prevId = prev?.subjectId;
+                        const newId = newSubject.subjectId;
+                        if (prevId !== newId) {
+                            if (newSubject.chatId) setChatId(newSubject.chatId);
+                            return newSubject;
+                        }
+                        return prev;
+                    });
+                }
+            } catch {
+                // 폴링 오류는 무시 (회의 흐름에 영향 없음)
+            }
+        };
+
+        const intervalId = setInterval(pollTopics, 10000); // 10초마다
+        return () => clearInterval(intervalId);
+    }, [currentMeeting?.meetingId, currentMeeting?.endedAt]);
+
 
     const loadCurrentMeeting = async () => {
         setIsLoading(true);
@@ -123,13 +167,33 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
             if (response.summary) {
                 updatedSubject.summary = response.summary;
             }
+            // Update current subject
             setCurrentSubject(updatedSubject);
+
+            // If the subject has its own chatId, update it
             if (updatedSubject.chatId) {
                 setChatId(updatedSubject.chatId);
             }
         }
-        if (response.suggestions) {
-            setSuggestedSubjects(response.suggestions);
+
+        // Handle suggestions/topics
+        if (response.suggestions || response.newTopics) {
+            const incomingTopics = response.suggestions || response.newTopics || [];
+            console.log('[MainPage] Processing topics:', incomingTopics);
+
+            setSuggestedSubjects(prev => {
+                // Merge old and new, filter duplicates
+                const combined = [...prev, ...incomingTopics];
+                const unique = combined.filter((val, idx, self) => self.indexOf(val) === idx);
+                return unique;
+            });
+        }
+    };
+
+    const handleResearchRequest = (topic: string) => {
+        if (chatRef.current) {
+            setActiveTab('chat');
+            chatRef.current.handleResearch(topic);
         }
     };
 
@@ -225,8 +289,8 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
                 {/* Main Area */}
                 <div className="flex-1 flex flex-col overflow-hidden bg-[var(--background)]">
                     <div className="flex-1 overflow-y-auto p-6 pb-32 space-y-6">
-                        {/* Current Subject */}
-                        <div className="bg-[var(--card-bg)] rounded-2xl border border-[var(--border-color)] p-6 shadow-sm transition-colors duration-300">
+                        {/* Current Subject Area */}
+                        <div className="space-y-6">
                             <CurrentSubject
                                 subject={currentSubject}
                                 meetingId={currentMeeting?.meetingId || null}
@@ -239,6 +303,7 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
                                     // If suggestions are returned during creation, update them too
                                     if (newSub.suggestions) setSuggestedSubjects(newSub.suggestions);
                                 }}
+                                onResearch={handleResearchRequest}
                             />
                         </div>
 
@@ -275,6 +340,7 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
                             <div className="flex-1 overflow-hidden relative">
                                 {activeTab === 'chat' ? (
                                     <ChatInterface
+                                        ref={chatRef}
                                         chatId={chatId}
                                         isMeetingActive={!!currentMeeting && !currentMeeting.endedAt}
                                     />

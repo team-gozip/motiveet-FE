@@ -1,4 +1,4 @@
-const BE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://222.116.142.95:8000';
+const BE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://222.116.142.95:8001';
 
 function getAuthHeaders(request: Request): Record<string, string> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };

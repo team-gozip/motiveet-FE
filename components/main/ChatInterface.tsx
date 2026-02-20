@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { chatApi } from '@/lib/api';
 import Button from '../common/Button';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface ChatMessage {
     messageId: number;
@@ -17,7 +19,8 @@ interface ChatInterfaceProps {
     isMeetingActive: boolean;
 }
 
-export default function ChatInterface({ chatId, isMeetingActive }: ChatInterfaceProps) {
+const ChatInterface = forwardRef((props: ChatInterfaceProps, ref) => {
+    const { chatId, isMeetingActive } = props;
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -33,6 +36,39 @@ export default function ChatInterface({ chatId, isMeetingActive }: ChatInterface
     useEffect(() => {
         scrollToBottom();
     }, [messages]);
+
+    useImperativeHandle(ref, () => ({
+        handleResearch: async (topic: string) => {
+            if (!chatId || isLoading) return;
+            setIsLoading(true);
+            try {
+                // 1. Send "Topic 찾아줘" message
+                const userResponse = await chatApi.requestResearch(chatId, topic);
+                const newUserMessage: ChatMessage = {
+                    messageId: userResponse.messageId,
+                    role: 'user',
+                    text: userResponse.text,
+                    timestamp: userResponse.timestamp,
+                };
+                setMessages(prev => [...prev, newUserMessage]);
+
+                // 2. Trigger AI Answer (which will handle research in BE)
+                const aiResponse = await chatApi.getAnswer(userResponse.messageId);
+                const aiMessage: ChatMessage = {
+                    messageId: aiResponse.messageId,
+                    role: 'assistant',
+                    text: aiResponse.text,
+                    image: aiResponse.image,
+                    timestamp: aiResponse.timestamp,
+                };
+                setMessages(prev => [...prev, aiMessage]);
+            } catch (error) {
+                console.error('Failed research request:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+    }));
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -133,7 +169,13 @@ export default function ChatInterface({ chatId, isMeetingActive }: ChatInterface
                                 : 'bg-[var(--highlight-bg)] text-[var(--foreground)] border border-[var(--border-color)]'
                                 }`}
                         >
-                            {message.text && <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.text}</p>}
+                            {message.text && (
+                                <div className="text-sm prose dark:prose-invert prose-slate max-w-none prose-p:leading-relaxed prose-a:text-indigo-500 hover:prose-a:underline">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {message.text}
+                                    </ReactMarkdown>
+                                </div>
+                            )}
                             {message.image && (
                                 <img
                                     src={message.image}
@@ -187,4 +229,6 @@ export default function ChatInterface({ chatId, isMeetingActive }: ChatInterface
             </div>
         </div>
     );
-}
+});
+
+export default ChatInterface;
