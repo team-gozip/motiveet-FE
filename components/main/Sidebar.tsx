@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { meetingApi, subjectApi } from '@/lib/api';
+import { useMeeting } from '@/components/providers/MeetingProvider';
 
 interface Meeting {
     meetingId: number;
@@ -25,6 +26,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ onMeetingSelect, onSubjectSelect }: SidebarProps) {
+    const { activeMeetingId } = useMeeting();
     const [activeTab, setActiveTab] = useState<'meetings' | 'subjects'>('meetings');
     const [meetings, setMeetings] = useState<Meeting[]>([]);
     const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -141,6 +143,11 @@ export default function Sidebar({ onMeetingSelect, onSubjectSelect }: SidebarPro
                                 {meeting.endedAt && (
                                     <span className="inline-block mt-2 px-2 py-0.5 text-[10px] font-bold bg-[var(--highlight-bg)] text-[var(--accent-primary)] opacity-70 rounded border border-[var(--border-color)] uppercase">
                                         종료됨
+                                    </span>
+                                )}
+                                {activeMeetingId === meeting.meetingId && !meeting.endedAt && (
+                                    <span className="inline-block mt-2 ml-2 px-2 py-0.5 text-[10px] font-bold bg-[var(--accent-primary)] text-white rounded border border-[var(--accent-primary)] uppercase animate-pulse shadow-[0_0_8px_var(--accent-primary)]">
+                                        진행중
                                     </span>
                                 )}
                                 {/* 삭제 버튼 */}

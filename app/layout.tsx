@@ -18,6 +18,7 @@ export const metadata: Metadata = {
 };
 
 import { ThemeProvider } from "@/components/common/ThemeProvider";
+import { MeetingProvider } from "@/components/providers/MeetingProvider";
 
 export default function RootLayout({
   children,
@@ -30,7 +31,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ThemeProvider>
-          {children}
+          <MeetingProvider>
+            {children}
+          </MeetingProvider>
         </ThemeProvider>
       </body>
     </html>

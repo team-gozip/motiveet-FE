@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Button from '../common/Button';
 import { meetingApi } from '@/lib/api';
+import { useMeeting } from '@/components/providers/MeetingProvider';
 
 interface MeetingControlsProps {
     isActive: boolean;
@@ -20,109 +21,10 @@ export default function MeetingControls({
     memo,
 }: MeetingControlsProps) {
     const [isLoading, setIsLoading] = useState(false);
-    const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-    const [volume, setVolume] = useState(0);
+    const { startGlobalMeeting, endGlobalMeeting, volume, activeMeetingId, isRecording } = useMeeting();
 
-    const audioContextRef = useRef<AudioContext | null>(null);
-    const analyserRef = useRef<AnalyserNode | null>(null);
-    const animationFrameRef = useRef<number | null>(null);
-
-    const startRecording = async (currentMeetingId: number) => {
-        try {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                alert('마이크 접근이 불가능합니다.\n보안 연결(HTTPS) 또는 localhost에서만 마이크를 사용할 수 있습니다.\n현재 주소(HTTP IP)에서는 브라우저가 마이크를 차단합니다.');
-                return;
-            }
-
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-            // Setup Web Audio API for volume monitoring
-            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-            const analyser = audioContext.createAnalyser();
-            const source = audioContext.createMediaStreamSource(stream);
-            source.connect(analyser);
-            analyser.fftSize = 256;
-
-            audioContextRef.current = audioContext;
-            analyserRef.current = analyser;
-
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-
-            const updateVolume = () => {
-                if (!analyserRef.current) return;
-                analyserRef.current.getByteFrequencyData(dataArray);
-                let sum = 0;
-                for (let i = 0; i < bufferLength; i++) {
-                    sum += dataArray[i];
-                }
-                const average = sum / bufferLength;
-                setVolume(average);
-                animationFrameRef.current = requestAnimationFrame(updateVolume);
-            };
-            updateVolume();
-
-            const recorder = new MediaRecorder(stream);
-            (window as any).recorder = recorder; // Debugging
-
-            recorder.ondataavailable = (e) => {
-                if (e.data.size > 0) {
-                    const audioBlob = new Blob([e.data], { type: 'audio/webm' });
-                    meetingApi.uploadAudio(currentMeetingId, audioBlob)
-                        .then(response => {
-                            console.log('[Audio Upload] Success:', response);
-                            if (response.success && onSubjectUpdate) {
-                                onSubjectUpdate(response);
-                            }
-                        })
-                        .catch(err => console.error('Audio upload failed:', err));
-                }
-            };
-
-            setMediaRecorder(recorder);
-            recorder.start();
-
-            // 30초마다 새로운 녹음 파일 생성 (Whisper 호환성 보장)
-            // recorder.stop()을 호출하면 ondataavailable이 실행되어 서버로 전송됩니다.
-            const intervalId = setInterval(() => {
-                if (recorder.state === 'recording') {
-                    recorder.stop();
-                    // 브라우저가 정지 후 다시 시작할 수 있도록 약간의 지연을 둡니다.
-                    setTimeout(() => {
-                        if (recorder.state === 'inactive') {
-                            recorder.start();
-                        }
-                    }, 200);
-                }
-            }, 30000);
-
-            (window as any).recorderInterval = intervalId;
-        } catch (error) {
-            console.error('Failed to start recording:', error);
-            alert('마이크 접근 권한이 필요합니다.');
-        }
-    };
-
-    const stopRecording = () => {
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-            mediaRecorder.stop();
-            mediaRecorder.stream.getTracks().forEach(track => track.stop());
-        }
-        if (animationFrameRef.current) {
-            cancelAnimationFrame(animationFrameRef.current);
-            animationFrameRef.current = null;
-        }
-        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-            audioContextRef.current.close();
-            audioContextRef.current = null;
-        }
-        if ((window as any).recorderInterval) {
-            clearInterval((window as any).recorderInterval);
-            (window as any).recorderInterval = null;
-        }
-        setMediaRecorder(null);
-        setVolume(0);
-    };
+    // Check if THIS specific meeting controls instance corresponds to the active recording session
+    const isThisMeetingRecording = isRecording && activeMeetingId === meetingId;
 
     const handleStart = async () => {
         const title = prompt('회의 제목을 입력해주세요:', '새로운 회의');
@@ -133,7 +35,7 @@ export default function MeetingControls({
             const response = await meetingApi.start(title);
             if (response.success) {
                 onMeetingStart(response.meetingId, response.chatId);
-                await startRecording(response.meetingId);
+                await startGlobalMeeting(response.meetingId, response.chatId);
             }
         } catch (error) {
             console.error('Failed to start meeting:', error);
@@ -153,7 +55,7 @@ export default function MeetingControls({
         try {
             const response = await meetingApi.end(meetingId, memo);
             if (response.success) {
-                stopRecording();
+                endGlobalMeeting();
                 onMeetingEnd(response.summary);
             }
         } catch (error) {
@@ -164,13 +66,10 @@ export default function MeetingControls({
         }
     };
 
+    // Cleanup handled by Provider
     useEffect(() => {
-        return () => {
-            if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-            if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-                audioContextRef.current.close();
-            }
-        };
+        // No local cleanup needed anymore
+        return () => { };
     }, []);
 
     // Volume Meter Component (SVG Waves)
@@ -189,10 +88,10 @@ export default function MeetingControls({
                                 key={i}
                                 className="w-1 rounded-full transition-all duration-100 ease-out"
                                 style={{
-                                    height: `${isActive ? dynamicHeight : baseHeight}px`,
-                                    backgroundColor: isActive && volume > 5 ? color : '#94a3b8',
-                                    opacity: isActive ? (volume > 5 ? 1 : 0.4) : 0.2,
-                                    boxShadow: isActive && volume > 20 ? `0 0 8px ${color}66` : 'none'
+                                    height: `${isThisMeetingRecording ? dynamicHeight : baseHeight}px`,
+                                    backgroundColor: isThisMeetingRecording && volume > 5 ? color : '#94a3b8',
+                                    opacity: isThisMeetingRecording ? (volume > 5 ? 1 : 0.4) : 0.2,
+                                    boxShadow: isThisMeetingRecording && volume > 20 ? `0 0 8px ${color}66` : 'none'
                                 }}
                             />
                         );
@@ -209,7 +108,7 @@ export default function MeetingControls({
                     <div className="flex items-center space-x-3">
                         <div className="relative">
                             <div className={`w-3.5 h-3.5 rounded-full ${isActive ? 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)]' : 'bg-gray-400 opacity-50'}`}></div>
-                            {isActive && <div className="absolute inset-0 w-3.5 h-3.5 rounded-full bg-emerald-500 animate-ping opacity-40"></div>}
+                            {isActive && isThisMeetingRecording && <div className="absolute inset-0 w-3.5 h-3.5 rounded-full bg-emerald-500 animate-ping opacity-40"></div>}
                         </div>
                         <span className="text-xs font-bold text-[var(--foreground)] opacity-60 tracking-wider whitespace-nowrap">
                             {isActive ? 'RECORDING LIVE' : 'READY TO START'}

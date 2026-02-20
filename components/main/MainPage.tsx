@@ -12,6 +12,7 @@ import SummaryModal from '@/components/main/SummaryModal';
 import { isAuthenticated, logout } from '@/lib/auth';
 import { meetingApi, subjectApi } from '@/lib/api';
 import { useTheme } from '@/components/common/ThemeProvider';
+import { useMeeting } from '@/components/providers/MeetingProvider';
 
 interface MainPageProps {
     initialMeetingId?: number;
@@ -19,6 +20,7 @@ interface MainPageProps {
 
 export default function MainPage({ initialMeetingId }: MainPageProps) {
     const { theme, toggleTheme } = useTheme();
+    const { lastAnalysisResult } = useMeeting();
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(true);
     const [currentMeeting, setCurrentMeeting] = useState<any>(null);
@@ -108,7 +110,7 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
                 const subjectResponse = await subjectApi.getCurrent(meeting.meetingId);
                 if (subjectResponse.subject) {
                     setCurrentSubject(subjectResponse.subject);
-                    setChatId(subjectResponse.subject.chatId);
+                    // setChatId(subjectResponse.subject.chatId); // Disable auto-switch
                     setSuggestedSubjects(subjectResponse.suggestions || []);
                 }
             }
@@ -150,7 +152,7 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
             // Always update state to clear old data if no subject found
             setCurrentSubject(subjectResponse.subject || null);
             if (subjectResponse.subject) {
-                setChatId(subjectResponse.subject.chatId);
+                // setChatId(subjectResponse.subject.chatId); // Disable auto-switch
             }
             setSuggestedSubjects(subjectResponse.suggestions || []);
         } catch (error) {
@@ -175,7 +177,7 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
 
             // If the subject has its own chatId, update it
             if (updatedSubject.chatId) {
-                setChatId(updatedSubject.chatId);
+                // setChatId(updatedSubject.chatId); // Disable auto-switch
             }
         }
 
@@ -192,6 +194,13 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
             });
         }
     };
+
+    // React to real-time audio analysis results
+    useEffect(() => {
+        if (lastAnalysisResult && currentMeeting?.meetingId && !currentMeeting?.endedAt) {
+            handleSubjectUpdate(lastAnalysisResult);
+        }
+    }, [lastAnalysisResult]);
 
     const handleResearchRequest = (topic: string) => {
         if (chatRef.current) {
