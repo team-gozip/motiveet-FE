@@ -4,36 +4,50 @@ import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-export default function Memo() {
+interface MemoProps {
+    meetingId: number | null;
+    onContentChange?: (content: string) => void;
+}
+
+export default function Memo({ meetingId, onContentChange }: MemoProps) {
     const [content, setContent] = useState('');
     const [isEditing, setIsEditing] = useState(false);
 
-    // Initial load from localStorage
+    // meetingId가 바뀔 때마다 해당 회의의 메모를 불러옴
     useEffect(() => {
-        const savedMemo = localStorage.getItem('meeting_memo');
-        if (savedMemo) {
-            setContent(savedMemo);
+        if (!meetingId) {
+            setContent('');
+            if (onContentChange) onContentChange('');
+            return;
         }
-    }, []);
+        const savedMemo = localStorage.getItem(`meeting_memo_${meetingId}`);
+        const initialContent = savedMemo || '';
+        setContent(initialContent);
+        if (onContentChange) {
+            onContentChange(initialContent);
+        }
+    }, [meetingId, onContentChange]);
 
-    // Save to localStorage whenever content changes
+    // 회의별로 독립된 키에 저장
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const newContent = e.target.value;
         setContent(newContent);
-        localStorage.setItem('meeting_memo', newContent);
+
+        if (onContentChange) {
+            onContentChange(newContent);
+        }
+
+        if (meetingId) {
+            localStorage.setItem(`meeting_memo_${meetingId}`, newContent);
+        }
     };
 
-    const enableEditMode = () => {
-        setIsEditing(true);
-    };
-
-    const disableEditMode = () => {
-        setIsEditing(false);
-    };
+    const enableEditMode = () => setIsEditing(true);
+    const disableEditMode = () => setIsEditing(false);
 
     return (
         <div className="h-full flex flex-col bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl shadow-sm overflow-hidden transition-all duration-300">
-            {/* Header - Using highlight color as a point */}
+            {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border-color)] bg-[var(--highlight-bg)]">
                 <div className="flex items-center space-x-3">
                     <div className="relative">
@@ -54,14 +68,12 @@ export default function Memo() {
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto relative group cursor-text custom-scrollbar" onClick={!isEditing ? enableEditMode : undefined}>
                 {!isEditing ? (
-                    // Preview mode
                     <div className="p-8 prose prose-slate dark:prose-invert max-w-none text-[var(--foreground)] markdown-preview">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {content || '*메모가 비어 있습니다. 클릭하여 작성을 시작하세요.*'}
                         </ReactMarkdown>
                     </div>
                 ) : (
-                    // Edit mode
                     <textarea
                         className="w-full h-full p-8 bg-transparent text-[var(--foreground)] border-none outline-none resize-none focus:ring-0 leading-relaxed custom-scrollbar text-base"
                         value={content}

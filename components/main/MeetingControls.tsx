@@ -8,6 +8,7 @@ interface MeetingControlsProps {
     onMeetingStart: (meetingId: number, chatId: number) => void;
     onMeetingEnd: (summary?: string) => void;
     onSubjectUpdate?: (subject: any) => void;
+    memo?: string;
 }
 
 export default function MeetingControls({
@@ -16,6 +17,7 @@ export default function MeetingControls({
     onMeetingStart,
     onMeetingEnd,
     onSubjectUpdate,
+    memo,
 }: MeetingControlsProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
@@ -149,7 +151,7 @@ export default function MeetingControls({
 
         setIsLoading(true);
         try {
-            const response = await meetingApi.end(meetingId);
+            const response = await meetingApi.end(meetingId, memo);
             if (response.success) {
                 stopRecording();
                 onMeetingEnd(response.summary);

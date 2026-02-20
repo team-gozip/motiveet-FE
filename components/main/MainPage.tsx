@@ -29,6 +29,7 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [summaryText, setSummaryText] = useState<string>('');
     const [showSummaryModal, setShowSummaryModal] = useState(false);
+    const [currentMemo, setCurrentMemo] = useState('');
     const chatRef = useRef<any>(null);
 
     useEffect(() => {
@@ -70,7 +71,8 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
                     });
                 }
 
-                // 현재 주제가 바뀌었을 때만 업데이트
+                // 현재 주제가 바뀌었을 때만 업데이트 -> 사용자 요청으로 자동 변경 방지 (Suggestions만 업데이트)
+                /* 
                 const newSubject = res.subject;
                 if (newSubject) {
                     setCurrentSubject((prev: any) => {
@@ -83,6 +85,7 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
                         return prev;
                     });
                 }
+                */
             } catch {
                 // 폴링 오류는 무시 (회의 흐름에 영향 없음)
             }
@@ -345,7 +348,10 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
                                         isMeetingActive={!!currentMeeting && !currentMeeting.endedAt}
                                     />
                                 ) : (
-                                    <Memo />
+                                    <Memo
+                                        meetingId={currentMeeting?.meetingId || null}
+                                        onContentChange={setCurrentMemo}
+                                    />
                                 )}
                             </div>
                         </div>
@@ -362,6 +368,7 @@ export default function MainPage({ initialMeetingId }: MainPageProps) {
                         onMeetingStart={handleMeetingStart}
                         onMeetingEnd={handleMeetingEnd}
                         onSubjectUpdate={handleSubjectUpdate}
+                        memo={currentMemo}
                     />
                 </div>
             </div>
